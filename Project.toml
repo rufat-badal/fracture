@@ -1,4 +1,5 @@
 [deps]
+IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 MadNLP = "2621e9c9-9eb4-46b1-8089-e8c72242dfb6"
