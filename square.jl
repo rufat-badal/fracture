@@ -1,4 +1,5 @@
 using JuMP
+# using Ipopt
 using MadNLP
 using ProgressMeter
 using CairoMakie
@@ -56,10 +57,15 @@ end
 minmove = Model(
     ()->MadNLP.Optimizer(
         print_level=MadNLP.WARN,
+        blas_num_threads=8,
         # acceptable_tol=1e-8,
         # max_iter=1000
     )
 )
+
+# minmove = Model(Ipopt.Optimizer)
+# set_optimizer_attribute(minmove, "max_cpu_time", 60.0)
+# set_optimizer_attribute(minmove, "print_level", 0)
 
 step = 2
 prev_L = num_triangs_hor*triang_side_length
@@ -67,38 +73,58 @@ L = dirichlet((step-1)/fps)
 
 @NLparameter(
     minmove,
-    prev_free_x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] ==
+    prev_x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] ==
         (i-1)*triang_side_length + ((j+1) % 2)*triang_side_length/2
 )
 @NLparameter(
     minmove,
-    prev_free_y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] ==
+    prev_y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] ==
         (j-1)*triang_height
 )
 
 delta_L = L - prev_L
+# apply uniform correction
 @variable(
     minmove,
-    min_x <= free_x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_x,
+    min_x <= x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_x,
     start = value(prev_free_x[i,j]) + delta_L/num_free_verts_hor
 )
 @variable(
     minmove,
-    min_y <= free_y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_y,
+    min_y <= y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_y,
     start = value(prev_free_x[i,j]) + delta_L/num_free_verts_hor
 )
 
+# Dirichlet condition
 @NLparameter(
     minmove,
-    right_x[j=1:num_free_verts_ver] == L + ((j+1) % 2)*triang_side_length/2
+    bdry_x[j=1:num_free_verts_ver] == L + ((j+1) % 2)*triang_side_length/2
 )
 
-# x- and y-coordinates of the whole grid as expressions
-x = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
-y = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
+# vertices 
+verticess = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 # leftmost (fixed)
-
-
+for j in 1:num_verts_ver
+    vertices[1,j] = [
+        ((j+1) % 2)*triang_side_length/2,
+        (j-1)*triang_height
+    ]
+end
 # middle (free)
-
+for i in 1:num_free_verts_hor
+    for j in 1:num_free_verts_ver
+        vertices[i+1,j] = [
+            x[i,j],
+            y[i,j]
+        ]
+    end
+end
 # rightmost (driven by the boundary condition)
+for j in 1:num_verts_ver
+    vertices[num_verts_hor, j] = [
+        bdry_x[j],
+        (j-1)*triang_height
+    ]
+end
+
+value.(vertices[end,:])
