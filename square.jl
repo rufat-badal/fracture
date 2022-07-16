@@ -7,9 +7,7 @@ using CairoMakie
 num_triangs_hor = 4 # choose even
 num_triangs_ver = 4 # choose even
 num_triangs = (2*num_triangs_hor-1) * num_triangs_ver
-num_edges = (num_triangs_hor - 1) * (num_triangs_ver + 1) +
-    1 + num_triangs_ver ÷ 2 +
-    num_triangs_hor * 2 * num_triangs_ver
+num_edges = num_triangs_hor * (num_triangs_ver + 1) + num_triangs_ver * (2*num_triangs_hor + 1)
 num_free_verts_hor = num_triangs_hor - 1 # ignore leftmost and rightmost vertices
 num_free_verts_ver = num_triangs_ver + 1
 num_verts_hor = num_free_verts_hor + 2
@@ -25,8 +23,8 @@ start_width = num_triangs_hor*triang_side_length
 max_pull = 1.6*break_dist - triang_side_length
 min_x = 0
 max_x = start_width + max_pull
-min_y = -2*triang_height
-max_y = (num_triangs_ver + 2)*triang_height
+min_y = -triang_height
+max_y = (num_triangs_ver + 1)*triang_height
 pot_min = -1.
 diss_coeff = 1.
 time_pull = 2.
@@ -34,6 +32,8 @@ l2_dissipation = false # if false => Kelvin-Voigt
 soft_max_alpha = 5
 time_horizon = 2*time_pull
 animation_width = 800
+animation_aspect = (max_x - min_x) / (max_y - min_y)
+animation_height = animation_width / animation_aspect
 hidpi_scaling = 2
 file_name = "square"
 fontsize = 16
@@ -74,7 +74,7 @@ L = dirichlet((step-1)/fps)
 @NLparameter(
     minmove,
     prev_x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] ==
-        (i-1)*triang_side_length + ((j+1) % 2)*triang_side_length/2
+        i*triang_side_length + ((j+1) % 2)*triang_side_length/2
 )
 @NLparameter(
     minmove,
@@ -140,3 +140,99 @@ for j in 1:num_verts_ver
         (j-1)*triang_height
     ]
 end
+
+function get_edges(verts)
+    edges = Matrix{Vector{Any}}(undef, num_edges, 2)
+    edge_id = 1
+    # add horizontal edges
+    for i in 1:num_verts_hor-1
+        for j in 1:num_verts_ver
+            edges[edge_id, 1] = verts[i,j]
+            edges[edge_id, 2] = verts[i+1,j]
+            edge_id += 1
+        end
+    end
+    # right-leaning odd rows
+    for i in 1:num_verts_hor
+        for j in 1:2:num_verts_ver-1
+            edges[edge_id, 1] = verts[i,j]
+            edges[edge_id, 2] = verts[i,j+1]
+            edge_id += 1
+        end
+    end
+    # right-leaning even rows
+    for i in 1:num_verts_hor-1
+        for j in 2:2:num_verts_ver-1
+            edges[edge_id, 1] = verts[i,j]
+            edges[edge_id, 2] = verts[i+1,j+1]
+            edge_id += 1
+        end
+    end
+    # left-leaning odd rows
+    for i in 2:num_verts_hor
+        for j in 1:2:num_verts_ver-1
+            edges[edge_id, 1] = verts[i,j]
+            edges[edge_id, 2] = verts[i-1,j+1]
+            edge_id += 1
+        end
+    end
+    # left-leaning even rows
+    for i in 1:num_verts_hor
+        for j in 2:2:num_verts_ver-1
+            edges[edge_id, 1] = verts[i,j]
+            edges[edge_id, 2] = verts[i,j+1]
+            edge_id += 1
+        end
+    end 
+    edges
+end
+
+prev_edges = get_edges(prev_vertices)
+edges = get_edges(vertices)
+
+function vector_to_values(vec)
+    broadcast((p) -> value.(p), vec)
+end
+
+function plot_grid(vertices, edges)
+    fig = Figure(
+        resolution=(
+            animation_scale*animation_width,
+            animation_scale*animation_height
+        ), fontsize=animation_scale*fontsize
+    )
+    ax = Axis(
+        fig[1, 1],
+        limits=(min_x-0.25, max_x, min_y, max_y),
+        aspect=animation_aspect,
+    )
+
+    plot_edges!(ax, vector_to_values(edges))
+    plot_vertices!(ax, vector_to_values(vertices))
+
+    fig
+end
+
+function plot_vertices!(ax, vertices)
+    vertices = vertices[:]
+    x = [v[1] for v in vertices]
+    y = [v[2] for v in vertices]
+    scatter!(ax, x, y, color=:blue, markersize=animation_scale*10)
+end
+
+function plot_edges!(ax, edges)
+    num_edges = size(edges)[1]
+    for i in 1:num_edges
+        v1, v2 = edges[i, :]
+        x1, y1 = v1
+        x2, y2 = v2
+        lines!(
+            ax, [x1, x2], [y1, y2],
+            color=:green,
+            linewidth=animation_scale*3,
+            linestyle=:dash
+        )
+    end
+end
+
+plot_grid(prev_vertices, prev_edges)
