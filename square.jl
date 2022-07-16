@@ -98,21 +98,31 @@ delta_L = L - prev_L
 # Dirichlet condition
 @NLparameter(
     minmove,
+    prev_bdry_x[j=1:num_free_verts_ver] == prev_L + ((j+1) % 2)*triang_side_length/2
+)
+@NLparameter(
+    minmove,
     bdry_x[j=1:num_free_verts_ver] == L + ((j+1) % 2)*triang_side_length/2
 )
 
 # vertices 
-verticess = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
+prev_vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
+vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 # leftmost (fixed)
 for j in 1:num_verts_ver
-    vertices[1,j] = [
+    prev_vertices[1,j] = [
         ((j+1) % 2)*triang_side_length/2,
         (j-1)*triang_height
     ]
+    vertices[1,j] = prev_vertices[1,j]
 end
 # middle (free)
 for i in 1:num_free_verts_hor
     for j in 1:num_free_verts_ver
+        prev_vertices[i+1,j] = [
+            prev_x[i,j],
+            prev_y[i,j]
+        ]
         vertices[i+1,j] = [
             x[i,j],
             y[i,j]
@@ -121,10 +131,12 @@ for i in 1:num_free_verts_hor
 end
 # rightmost (driven by the boundary condition)
 for j in 1:num_verts_ver
+    prev_vertices[num_verts_hor, j] = [
+        prev_bdry_x[j],
+        (j-1)*triang_height
+    ]
     vertices[num_verts_hor, j] = [
         bdry_x[j],
         (j-1)*triang_height
     ]
 end
-
-value.(vertices[end,:])
