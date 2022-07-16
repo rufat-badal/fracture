@@ -110,39 +110,39 @@ prev_vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 # leftmost (fixed)
 for j in 1:num_verts_ver
-    prev_vertices[1,j] = [
+    prev_vertices[1,j] = (
         ((j+1) % 2)*triang_side_length/2,
         (j-1)*triang_height
-    ]
+    )
     vertices[1,j] = prev_vertices[1,j]
 end
 # middle (free)
 for i in 1:num_free_verts_hor
     for j in 1:num_free_verts_ver
-        prev_vertices[i+1,j] = [
+        prev_vertices[i+1,j] = (
             prev_x[i,j],
             prev_y[i,j]
-        ]
-        vertices[i+1,j] = [
+        )
+        vertices[i+1,j] = (
             x[i,j],
             y[i,j]
-        ]
+        )
     end
 end
 # rightmost (driven by the boundary condition)
 for j in 1:num_verts_ver
-    prev_vertices[num_verts_hor, j] = [
+    prev_vertices[num_verts_hor, j] = (
         prev_bdry_x[j],
         (j-1)*triang_height
-    ]
-    vertices[num_verts_hor, j] = [
+    )
+    vertices[num_verts_hor, j] = (
         bdry_x[j],
         (j-1)*triang_height
-    ]
+    )
 end
 
 function get_edges(verts)
-    edges = Matrix{Vector{Any}}(undef, num_edges, 2)
+    edges = Matrix{Tuple{Any, Any}}(undef, num_edges, 2)
     edge_id = 1
     # add horizontal edges
     for i in 1:num_verts_hor-1
