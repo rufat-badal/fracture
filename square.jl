@@ -110,39 +110,39 @@ prev_vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 # leftmost (fixed)
 for j in 1:num_verts_ver
-    prev_vertices[1,j] = (
+    prev_vertices[1,j] = [
         ((j+1) % 2)*triang_side_length/2,
         (j-1)*triang_height
-    )
+    ]
     vertices[1,j] = prev_vertices[1,j]
 end
 # middle (free)
 for i in 1:num_free_verts_hor
     for j in 1:num_free_verts_ver
-        prev_vertices[i+1,j] = (
+        prev_vertices[i+1,j] = [
             prev_x[i,j],
             prev_y[i,j]
-        )
-        vertices[i+1,j] = (
+        ]
+        vertices[i+1,j] = [
             x[i,j],
             y[i,j]
-        )
+        ]
     end
 end
 # rightmost (driven by the boundary condition)
 for j in 1:num_verts_ver
-    prev_vertices[num_verts_hor, j] = (
+    prev_vertices[num_verts_hor, j] = [
         prev_bdry_x[j],
         (j-1)*triang_height
-    )
-    vertices[num_verts_hor, j] = (
+    ]
+    vertices[num_verts_hor, j] = [
         bdry_x[j],
         (j-1)*triang_height
-    )
+    ]
 end
 
 function get_edges(verts)
-    edges = Matrix{Tuple{Any, Any}}(undef, num_edges, 2)
+    edges = Matrix{Vector{Any}}(undef, num_edges, 2)
     edge_id = 1
     # add horizontal edges
     for i in 1:num_verts_hor-1
@@ -191,7 +191,7 @@ prev_edges = get_edges(prev_vertices)
 edges = get_edges(vertices)
 
 function get_triangles(verts)
-    triangs = Matrix{Tuple{Any, Any}}(undef, num_triangs, 3)
+    triangs = Matrix{Vector{Any}}(undef, num_triangs, 3)
     triang_id = 1
     # upward-pointing odd rows
     for i in 1:num_verts_hor-1
@@ -283,8 +283,9 @@ end
 
 function plot_triangles!(ax, triangles)
     num_triags = size(triangles)[1]
+
     for i in 1:num_triags
-        poly!(ax, triangles[i, :], color=(:pink, 0.5))
+        poly!(ax, Tuple.(triangles[i, :]), color=(:pink, 0.5))
     end
 end
 
