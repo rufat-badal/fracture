@@ -289,8 +289,6 @@ function plot_triangles!(ax, triangles)
     end
 end
 
-plot_grid(prev_vertices, prev_edges, prev_triangles)
-
 @NLexpression(
     minmove,
     dissipation,
@@ -307,13 +305,22 @@ plot_grid(prev_vertices, prev_edges, prev_triangles)
     dist_sq[i=1:num_edges],
     (e2[i][1] - e1[i][1])^2 + (e2[i][2] - e1[i][2])^2
 )
+# we implicitely assume that the simulation starts
+# in a globally optimal state
+@NLparameter(minmove, max_dist_sq[i=1:num_edges] == pref_dist)
+@NLparameter(minmove, broken[i=1:num_edges] == 0.)
 
 register(minmove, :W, 1, lennard_jones, autodiff = true)
 # no memory for the moment
 @NLexpression(
     minmove,
     energy,
-    sum(W(dist_sq[i]) for i in 1:num_edges)
+    sum((1-broken[i])*W(dist_sq[i]) + broken[i]*(
+        (
+            W(dist_sq[i])*exp(soft_max_alpha*W(dist_sq[i])) +
+            W(max_dist_sq[i])*exp(soft_max_alpha*W(max_dist_sq[i]))
+        ) / (exp(soft_max_alpha*W(dist_sq[i])) + exp(soft_max_alpha*W(max_dist_sq[i])))
+    ) for i in 1:num_edges)
 )
 
 @NLobjective(
