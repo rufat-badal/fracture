@@ -2,7 +2,8 @@ using JuMP
 # using Ipopt
 using MadNLP
 using ProgressMeter
-using CairoMakie
+# using CairoMakie
+using GLMakie
 
 num_triangs_hor = 4 # choose even
 num_triangs_ver = 4 # choose even
