@@ -6,7 +6,7 @@ using CairoMakie
 
 num_triangs_hor = 4 # choose even
 num_triangs_ver = 4 # choose even
-num_triangs = (2*num_triangs_hor-1) * num_triangs_ver
+num_triangs = 2*num_triangs_hor * num_triangs_ver
 num_edges = num_triangs_hor * (num_triangs_ver + 1) + num_triangs_ver * (2*num_triangs_hor + 1)
 num_free_verts_hor = num_triangs_hor - 1 # ignore leftmost and rightmost vertices
 num_free_verts_ver = num_triangs_ver + 1
@@ -190,11 +190,56 @@ end
 prev_edges = get_edges(prev_vertices)
 edges = get_edges(vertices)
 
+function get_triangles(verts)
+    triangs = Matrix{Tuple{Any, Any}}(undef, num_triangs, 3)
+    triang_id = 1
+    # upward-pointing odd rows
+    for i in 1:num_verts_hor-1
+        for j in 1:2:num_verts_ver-1
+            triangs[triang_id, 1] = verts[i,j]
+            triangs[triang_id, 2] = verts[i+1,j]
+            triangs[triang_id, 3] = verts[i,j+1]
+            triang_id += 1
+        end
+    end
+    # upward-pointing even rows
+    for i in 1:num_verts_hor-1
+        for j in 2:2:num_verts_ver-1
+            triangs[triang_id, 1] = verts[i,j]
+            triangs[triang_id, 2] = verts[i+1,j]
+            triangs[triang_id, 3] = verts[i+1,j+1]
+            triang_id += 1
+        end
+    end
+    # downward-pointing odd rows
+    for i in 1:num_verts_hor-1
+        for j in 3:2:num_verts_ver
+            triangs[triang_id, 1] = verts[i,j]
+            triangs[triang_id, 2] = verts[i,j-1]
+            triangs[triang_id, 3] = verts[i+1,j]
+            triang_id += 1
+        end
+    end
+    # downward-pointing odd rows
+    for i in 1:num_verts_hor-1
+        for j in 2:2:num_verts_ver
+            triangs[triang_id, 1] = verts[i,j]
+            triangs[triang_id, 2] = verts[i+1,j-1]
+            triangs[triang_id, 3] = verts[i+1,j]
+            triang_id += 1
+        end
+    end
+    triangs
+end
+
+prev_triangles = get_triangles(prev_vertices)
+triangles = get_triangles(vertices)
+
 function vector_to_values(vec)
     broadcast((p) -> value.(p), vec)
 end
 
-function plot_grid(vertices, edges)
+function plot_grid(vertices, edges, triangles)
     fig = Figure(
         resolution=(
             animation_scale*animation_width,
@@ -207,6 +252,7 @@ function plot_grid(vertices, edges)
         aspect=animation_aspect,
     )
 
+    plot_triangles!(ax, vector_to_values(triangles))
     plot_edges!(ax, vector_to_values(edges))
     plot_vertices!(ax, vector_to_values(vertices))
 
@@ -235,4 +281,11 @@ function plot_edges!(ax, edges)
     end
 end
 
-plot_grid(prev_vertices, prev_edges)
+function plot_triangles!(ax, triangles)
+    num_triags = size(triangles)[1]
+    for i in 1:num_triags
+        poly!(ax, triangles[i, :], color=(:pink, 0.5))
+    end
+end
+
+plot_grid(prev_vertices, prev_edges, prev_triangles)
