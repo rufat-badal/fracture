@@ -69,8 +69,7 @@ minmove = Model(
 
 step = 2
 prev_L = num_triangs_hor*triang_side_length
-# L = dirichlet((step-1)/fps)
-L = prev_L
+L = dirichlet((step-1)/fps)
 
 @NLparameter(
     minmove,
@@ -93,7 +92,7 @@ delta_L = L - prev_L
 @variable(
     minmove,
     min_y <= y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_y,
-    start = value(prev_x[i,j]) + delta_L/num_free_verts_hor
+    start = value(prev_y[i,j])
 )
 
 # Dirichlet condition
@@ -309,31 +308,20 @@ plot_grid(prev_vertices, prev_edges, prev_triangles)
     (e2[i][1] - e1[i][1])^2 + (e2[i][2] - e1[i][2])^2
 )
 
-@expression(minmove, prev_e1[i=1:num_edges], prev_edges[i,1])
-@expression(minmove, prev_e2[i=1:num_edges], prev_edges[i,2])
-@NLexpression(
-    minmove,
-    prev_dist_sq[i=1:num_edges],
-    (prev_e2[i][1] - prev_e1[i][1])^2 + (prev_e2[i][2] - prev_e1[i][2])^2
-)
-
 register(minmove, :W, 1, lennard_jones, autodiff = true)
+# no memory for the moment
 @NLexpression(
     minmove,
     energy,
-    sum((dist_sq[i] - 1)^2 for i in 1:num_edges)
-    # sum(W(dist_sq[i]) for i in 1:num_edges)
+    sum(W(dist_sq[i]) for i in 1:num_edges)
 )
 
 @NLobjective(
     minmove,
     Min,
-    # energy + diss_coeff*fps*dissipation
-    energy
+    energy + diss_coeff*fps*dissipation
 )
 
 optimize!(minmove)
 
 plot_grid(vertices, edges, triangles)
-println(objective_value(minmove))
-# println(sum(lennard_jones(value(prev_dist_sq[i])) for i in 1:num_edges))
