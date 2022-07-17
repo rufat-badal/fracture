@@ -39,7 +39,7 @@ file_name = "square"
 fontsize = 16
 only_video = true; # if false generate a folder of snapshots for each frame
 
-function lennard_jones(dist_sq; pot_min=-1)
+function lennard_jones(dist_sq)
     # Lennard-jones of squared distances.
     # The factor cbrt(2) assures that the global minimum 
     # is attained at cur_dist == pref_dist
@@ -69,7 +69,8 @@ minmove = Model(
 
 step = 2
 prev_L = num_triangs_hor*triang_side_length
-L = dirichlet((step-1)/fps)
+# L = dirichlet((step-1)/fps)
+L = prev_L
 
 @NLparameter(
     minmove,
@@ -87,12 +88,12 @@ delta_L = L - prev_L
 @variable(
     minmove,
     min_x <= x[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_x,
-    start = value(prev_free_x[i,j]) + delta_L/num_free_verts_hor
+    start = value(prev_x[i,j]) + delta_L/num_free_verts_hor
 )
 @variable(
     minmove,
     min_y <= y[i=1:num_free_verts_hor,j=1:num_free_verts_ver] <= max_y,
-    start = value(prev_free_x[i,j]) + delta_L/num_free_verts_hor
+    start = value(prev_x[i,j]) + delta_L/num_free_verts_hor
 )
 
 # Dirichlet condition
@@ -110,39 +111,39 @@ prev_vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 vertices = Matrix{Any}(undef, num_verts_hor, num_verts_ver)
 # leftmost (fixed)
 for j in 1:num_verts_ver
-    prev_vertices[1,j] = [
+    prev_vertices[1,j] = (
         ((j+1) % 2)*triang_side_length/2,
         (j-1)*triang_height
-    ]
+    )
     vertices[1,j] = prev_vertices[1,j]
 end
 # middle (free)
 for i in 1:num_free_verts_hor
     for j in 1:num_free_verts_ver
-        prev_vertices[i+1,j] = [
+        prev_vertices[i+1,j] = (
             prev_x[i,j],
             prev_y[i,j]
-        ]
-        vertices[i+1,j] = [
+        )
+        vertices[i+1,j] = (
             x[i,j],
             y[i,j]
-        ]
+        )
     end
 end
 # rightmost (driven by the boundary condition)
 for j in 1:num_verts_ver
-    prev_vertices[num_verts_hor, j] = [
+    prev_vertices[num_verts_hor, j] = (
         prev_bdry_x[j],
         (j-1)*triang_height
-    ]
-    vertices[num_verts_hor, j] = [
+    )
+    vertices[num_verts_hor, j] = (
         bdry_x[j],
         (j-1)*triang_height
-    ]
+    )
 end
 
 function get_edges(verts)
-    edges = Matrix{Vector{Any}}(undef, num_edges, 2)
+    edges = Matrix{Tuple{Any, Any}}(undef, num_edges, 2)
     edge_id = 1
     # add horizontal edges
     for i in 1:num_verts_hor-1
@@ -191,7 +192,7 @@ prev_edges = get_edges(prev_vertices)
 edges = get_edges(vertices)
 
 function get_triangles(verts)
-    triangs = Matrix{Vector{Any}}(undef, num_triangs, 3)
+    triangs = Matrix{Tuple{Any, Any}}(undef, num_triangs, 3)
     triang_id = 1
     # upward-pointing odd rows
     for i in 1:num_verts_hor-1
@@ -285,8 +286,54 @@ function plot_triangles!(ax, triangles)
     num_triags = size(triangles)[1]
 
     for i in 1:num_triags
-        poly!(ax, Tuple.(triangles[i, :]), color=(:pink, 0.5))
+        poly!(ax, triangles[i, :], color=(:pink, 0.5))
     end
 end
 
 plot_grid(prev_vertices, prev_edges, prev_triangles)
+
+@NLexpression(
+    minmove,
+    dissipation,
+    sum(
+        (x[i,j]-prev_x[i,j])^2 + (y[i,j]-prev_y[i,j])^2
+        for i in 1:num_free_verts_hor, j in 1:num_free_verts_ver
+    )
+)
+
+@expression(minmove, e1[i=1:num_edges], edges[i,1])
+@expression(minmove, e2[i=1:num_edges], edges[i,2])
+@NLexpression(
+    minmove,
+    dist_sq[i=1:num_edges],
+    (e2[i][1] - e1[i][1])^2 + (e2[i][2] - e1[i][2])^2
+)
+
+@expression(minmove, prev_e1[i=1:num_edges], prev_edges[i,1])
+@expression(minmove, prev_e2[i=1:num_edges], prev_edges[i,2])
+@NLexpression(
+    minmove,
+    prev_dist_sq[i=1:num_edges],
+    (prev_e2[i][1] - prev_e1[i][1])^2 + (prev_e2[i][2] - prev_e1[i][2])^2
+)
+
+register(minmove, :W, 1, lennard_jones, autodiff = true)
+@NLexpression(
+    minmove,
+    energy,
+    sum((dist_sq[i] - 1)^2 for i in 1:num_edges)
+    # sum(W(dist_sq[i]) for i in 1:num_edges)
+)
+
+@NLobjective(
+    minmove,
+    Min,
+    # energy + diss_coeff*fps*dissipation
+    energy
+)
+
+optimize!(minmove)
+
+plot_grid(vertices, edges, triangles)
+println(objective_value(minmove))
+# println(sum(lennard_jones(value(prev_dist_sq[i])) for i in 1:num_edges))
